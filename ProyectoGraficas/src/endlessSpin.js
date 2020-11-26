@@ -56,6 +56,8 @@ let group, textMesh1, textMesh2, textGeo, materials;
 font = undefined
 var counterTime = 0
 
+let particleSystem, particleCountSnow, particlesSnow;
+
 const lightColors = [
 	'#2980b9',
 	'#16a085',
@@ -114,11 +116,8 @@ function createScene(){
 	addHero();
 	addLight();
 	addExplosion();
-	
-	materials = [
-		new THREE.MeshPhongMaterial( { color: 0xffffff, flatShading: true } ), // front
-		new THREE.MeshPhongMaterial( { color: 0xffffff } ) // side
-	];
+	snow();
+
 
 	camera.position.z = 6.5;
 	camera.position.y = 3.5;
@@ -200,15 +199,18 @@ function handleKeyDown(keyEvent){
 }
 
 function addHero(){
-	var sphereGeometry = new THREE.DodecahedronGeometry( heroRadius, 1);
-	for(var i = 0; i < sphereGeometry.faces.length; i++){
-		if(i%2 == 0){
-			sphereGeometry.faces[i].color.setHex(0x4f5a66);
-		} else {
-			sphereGeometry.faces[i].color.setHex(0xC6E2FF);
-		}
-	}
-	var sphereMaterial = new THREE.MeshBasicMaterial( { vertexColors: THREE.FaceColors } )
+	var sphereGeometry = new THREE.BoxBufferGeometry( heroRadius, heroRadius, heroRadius);
+	let sphereMaterial = new THREE.MeshPhysicalMaterial( {
+		clearcoat: 0.5,
+		clearcoatRoughness: 0.5,
+		metalness: 0.1,
+		roughness: 0,
+		reflectivity: 1,
+		color: 0x49aa7b,
+		emissive: 0x990000,
+		//normalScale: new THREE.Vector2( 0.15, 0.15 )
+	} );
+	//var sphereMaterial = new THREE.MeshPhysicalMaterial( { vertexColors: THREE.FaceColors } )
 	jumping=false;
 	heroSphere = new THREE.Mesh( sphereGeometry, sphereMaterial );
 	heroSphere.receiveShadow = true;
@@ -537,7 +539,6 @@ function update(){
     	clock.start();
     	addPathTree();
 	}
-	console.log(Math.round(clock2.getElapsedTime()))
 	if(Math.round(clock2.getElapsedTime())%3 == 0 && counterTime != Math.round(clock2.getElapsedTime())){
 		counterTime = Math.round(clock2.getElapsedTime())
 		text = String((text - '0') + 1)
@@ -545,7 +546,8 @@ function update(){
 	}
     doTreeLogic();
     doExplosionLogic();
-    render();
+	makeItSnow();
+	render();
 	requestAnimationFrame(update);//pide otro update
 }
 
@@ -560,9 +562,7 @@ function doTreeLogic(){
 			treesToRemove.push(oneTree);
 		}else{//valida si choco
 			if(treePos.distanceTo(heroSphere.position)<=0.6){
-				console.log("hit");
 				hasCollided=true;
-				//parts.push(new ExplodeAnimation(heroSphere.position.x, heroSphere.position.y));
 				explode();
 			}
 		}
@@ -574,7 +574,6 @@ function doTreeLogic(){
 		treesInPath.splice(fromWhere,1);
 		treesPool.push(oneTree);
 		oneTree.visible=false;
-		console.log("remove tree");
 	});
 }
 
@@ -604,6 +603,51 @@ function explode(){
 	}
 	explosionPower=1.07;
 	particles.visible=true;
+}
+
+function snow() {
+	let loader = new THREE.TextureLoader();
+		loader.crossOrigin = '';
+	particleCountSnow = 1500;
+	let pMaterial = new THREE.PointCloudMaterial({
+		color: 0xFFFFFF,
+		size: 1.5,
+		map: loader.load(
+			"https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/snowflake2.png"
+		),
+		blending: THREE.AdditiveBlending,
+		depthTest: false,
+		transparent: true
+		});
+
+	particlesSnow = new THREE.Geometry;
+	for (var i = 0; i < particleCountSnow; i++) {
+		var pX = Math.random()*500 - 250,
+			pY = Math.random()*500 - 250,
+			pZ = Math.random()*500 - 250,
+			particle = new THREE.Vector3(pX, pY, pZ);
+		particle.velocity = {};
+		particle.velocity.y = 0;
+		particlesSnow.vertices.push(particle);
+	}
+	particleSystem = new THREE.PointCloud(particlesSnow, pMaterial);
+	particleSystem.position.x = 100;
+	particleSystem.position.y = 100;
+	scene.add(particleSystem);
+}
+
+function makeItSnow() {
+	var pCount = particleCountSnow;
+	while (pCount--) {
+		var particle = particlesSnow.vertices[pCount];
+		if (particle.y < -200) {
+			particle.y = 200;
+			particle.velocity.y = 0;
+		}
+		particle.velocity.y -= Math.random() * .02;
+		particle.y += particle.velocity.y;
+	}
+	particlesSnow.verticesNeedUpdate = true;
 }
 
 function render(){
